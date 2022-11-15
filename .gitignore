@@ -1,0 +1,7 @@
+# General
+.DS_Store
+
+# Project
+.idea
+.ipynb_checkpoints
+__pycache__
