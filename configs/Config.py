@@ -3,6 +3,4 @@
 
 class Config:
     def __init__(self):
-
-    def getParser(self):
         pass

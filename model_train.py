@@ -1,30 +1,31 @@
 # -*- coding: utf-8 -*-
 import os
+
 import torch
-from configs.prefix_nlg_config import args
 from trainer import Trainer
-from utils import init_logger
 
-logger = init_logger(os.path.join(args.log_path, "train.log"))
+from configs.PrefixNlgConfig import PrefixNlgConfig
+import utils.MyLogger as MyLogger
+from utils.common_utils import setSeed
 
-#
-# def set_seed(args):
-#     # 结果可复现
-#     torch.manual_seed(args.seed)
-#     random.seed(args.seed)
-#
-#     if torch.cuda.is_available():
-#         torch.cuda.manual_seed(args.seed)
+def main():
+    # 获取模型参数
+    config = PrefixNlgConfig.getParser()
+    # 自定义logger
+    logger = MyLogger.init_logger(os.path.join(config.log_path, "train.log"))
+    # 固定随机种子
+    setSeed(config.seed)
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    logger.info('Project Run On Device %s' % device)
+
+    trainer = Trainer(config, logger)
+    if config.run_mode == 'train':
+        trainer.train()
+    elif config.run_mode == 'predict':
+        model_name = "checkpoints/step2000_latest.pt"
+        trainer.infer(model_name)
 
 
 if __name__ == '__main__':
-    # set_seed(args)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logger.info('Device %s' % device)
-    trainer = Trainer(args, logger)
-    if args.mode == 'train':
-        trainer.train()
-    elif args.mode == 'infer':
-        model_name = "checkpoints/step2000_latest.pt"
-        # model_name = "checkpoints/step748_latest.pt"
-        trainer.infer(model_name)
+    main()
