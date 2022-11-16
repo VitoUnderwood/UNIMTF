@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import datetime
 import os
 
 import numpy as np
@@ -9,33 +10,27 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 import utils
-from model.summarizer import Summarizer
-from my_dataset import MyDataset, OdpsDataset, collate_fn
-from utils import EarlyStopping
+from models.prefix_nlg.PrefixNlgModel import PrefixNlgModel
+# from my_dataset import MyDataset, OdpsDataset, collate_fn
+from utils.EarlyStop import EarlyStopping
+from utils.common_utils import getTimestamp
 
 
 class Trainer(object):
-    def __init__(self, args, logger):
-        self.args = args
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = Summarizer(self.args).to(self.device)
-        self.save_checkpoint_steps = args.save_checkpoint_steps
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-5)
+    def __init__(self, config, logger):
+        self.config = config
+        self.model = PrefixNlgModel(config).to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)
         self.loss_fn = torch.nn.BCELoss()
-        self.writer = SummaryWriter("./logs")
+        self.writer = SummaryWriter(config.summary_path)
         self.logger = logger
-        self.model.train()
 
-    def train(self):
-        early_stopping = EarlyStopping(args=self.args, patience=self.args.patience, verbose=True)
-
+    def train(self, train_dataloader, dev_dataloader):
         self.logger.info('Start training...')
-        train_dataloader = DataLoader(dataset=MyDataset(self.args.train_file), batch_size=self.args.batch_size,
-                                      shuffle=True, drop_last=True, collate_fn=collate_fn)
-        dev_dataloader = DataLoader(dataset=MyDataset(self.args.dev_file), batch_size=self.args.batch_size,
-                                    shuffle=True, drop_last=True, collate_fn=collate_fn)
 
-        for i in range(self.args.max_epoch):
+        early_stopping = EarlyStopping(config=self.config, patience=self.config.patience, verbose=True)
+
+        for i in range(self.config.max_epoch):
             self.logger.info("-------epoch  {} -------".format(i + 1))
             self.model.train()
             for step, batch in enumerate(train_dataloader):
@@ -58,9 +53,9 @@ class Trainer(object):
 
                 train_step = len(train_dataloader) * i + step + 1
                 # self.writer.add_scalar("train_loss", loss.item(),train_step)
-                # if train_step % self.args.save_checkpoint_steps == 0:
+                # if train_step % self.config.save_checkpoint_steps == 0:
                 # self.save(train_step)
-                if train_step % self.args.train_log_steps == 0:
+                if train_step % self.config.train_log_steps == 0:
                     self.logger.info("train time：{}, Loss: {}".format(train_step, loss.item()))
                     self.writer.add_scalar("train_loss", loss.item(), train_step)
 
@@ -107,11 +102,14 @@ class Trainer(object):
             # print("saved epoch {}".format(i + 1))
         self.writer.close()
 
+    def eval(self):
+
+
     def infer(self, model_name):
         self.model.load_state_dict(torch.load(model_name))
         print(f"model {model_name} load finish...")
         self.model.eval()
-        test_dataloader = DataLoader(dataset=MyDataset(self.args.test_file), batch_size=self.args.batch_size,
+        test_dataloader = DataLoader(dataset=MyDataset(self.config.test_file), batch_size=self.config.batch_size,
                                      shuffle=False, drop_last=False, collate_fn=collate_fn)
 
         result_s = {'real_idx': [], 'predict_idx': [], 'src_text': [], 'summarized_text': []}
@@ -143,7 +141,7 @@ class Trainer(object):
                         # candidate = batch.src_str[i][j].strip()
                         if sent_scores[i][j] >= 1.98:
                             pred_idx.append(j)
-                        if len(pred_idx) == self.args.max_pred_sents:
+                        if len(pred_idx) == self.config.max_pred_sents:
                             break
                     if len(pred_idx) == 0:
                         pred_idx.append(selected_ids[i][0])
@@ -161,19 +159,19 @@ class Trainer(object):
         save_df['predict_idx'] = result_s['predict_idx']
         save_df['src_text'] = result_s['src_text']
         save_df['summarized_text'] = result_s['summarized_text']
-        save_df.to_csv(self.args.result_save_path, sep='\t', index=False)
+        save_df.to_csv(self.config.result_save_path, sep='\t', index=False)
 
     def predict(self, model_name):
         import common_io
-        self.args.tables = "odps://kbalgo_dev/tables/jx_text_sum_predict"
-        self.args.outputs = "odps://kbalgo_dev/tables/jx_text_sum_predict_outputs"
-        reader = common_io.table.TableReader(self.args.tables, selected_cols="text")  # 列名必须是小写
+        self.config.tables = "odps://kbalgo_dev/tables/jx_text_sum_predict"
+        self.config.outputs = "odps://kbalgo_dev/tables/jx_text_sum_predict_outputs"
+        reader = common_io.table.TableReader(self.config.tables, selected_cols="text")  # 列名必须是小写
         total_records_num = reader.get_row_count()  # Get total records number, 获得表的总行数
         # ● Read读取操作返回一个python数组，数组中每个元素为表的一行数据组成的一个tuple。
         records = reader.read(total_records_num)
         reader.close()
 
-        processor = Processor(args)
+        processor = Processor(config)
 
         datasets = []
 
@@ -223,7 +221,7 @@ class Trainer(object):
                         # candidate = batch.src_str[i][j].strip()
                         if sent_scores[i][j] >= 0.95:
                             pred_idx.append(j)
-                        if len(pred_idx) == self.args.max_pred_sents:
+                        if len(pred_idx) == self.config.max_pred_sents:
                             break
                     if len(pred_idx) == 0:
                         pred_idx.append(selected_ids[i][0])
@@ -232,15 +230,10 @@ class Trainer(object):
                     results.append(
                         ('[SEP]'.join([str(w) for w in src_strs[i]]), '[SEP]'.join([src_strs[i][p] for p in pred_idx])))
 
-        writer = common_io.table.TableWriter(self.args.outputs)
+        writer = common_io.table.TableWriter(self.config.outputs)
         writer.write(results, (0, 1))
         writer.close()
 
     def save(self, step):
-        # checkpoint_path = os.path.join(self.args.model_save_path, f'step{step}.pt')
-        # self.logger.info("Saving checkpoint %s" % checkpoint_path)
-        # if not os.path.exists(checkpoint_path):
-        # torch.save(self.model.state_dict(), checkpoint_path)
-
-        checkpoint_path = os.path.join(self.args.model_save_path, f'step{step}_latest.pt')
-        torch.save(self.model.state_dict(), checkpoint_path
+        checkpoint_path = os.path.join(self.config.model_save_path, f'step{step}_{getTimestamp()}.pt')
+        torch.save(self.model.state_dict(), checkpoint_path)

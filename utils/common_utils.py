@@ -1,4 +1,5 @@
 # -*- coding:utf-8 -*-
+import datetime
 
 import torch
 import random
@@ -11,3 +12,8 @@ def setSeed(seed):
     # gpu
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
+
+
+def getTimestamp():
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    return timestamp
