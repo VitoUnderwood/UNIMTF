@@ -7,5 +7,5 @@
 __pycache__
 data
 checkpoints
-pretrained_model
+pretrained_models
 test
