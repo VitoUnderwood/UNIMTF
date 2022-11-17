@@ -12,8 +12,9 @@ from torch.utils.tensorboard import SummaryWriter
 import utils
 from models.prefix_nlg.PrefixNlgModel import PrefixNlgModel
 # from my_dataset import MyDataset, OdpsDataset, collate_fn
+
 from utils.EarlyStop import EarlyStopping
-from utils.common_utils import getTimestamp
+from utils.CommonUtils import getTimestamp
 
 
 class Trainer(object):
@@ -102,16 +103,10 @@ class Trainer(object):
             # print("saved epoch {}".format(i + 1))
         self.writer.close()
 
-    def eval(self):
-
-
-    def infer(self, model_name):
+    def infer(self, model_name, test_dataloader):
         self.model.load_state_dict(torch.load(model_name))
         print(f"model {model_name} load finish...")
         self.model.eval()
-        test_dataloader = DataLoader(dataset=MyDataset(self.config.test_file), batch_size=self.config.batch_size,
-                                     shuffle=False, drop_last=False, collate_fn=collate_fn)
-
         result_s = {'real_idx': [], 'predict_idx': [], 'src_text': [], 'summarized_text': []}
         save_path = 'result.tsv'
         with torch.no_grad():
@@ -161,7 +156,7 @@ class Trainer(object):
         save_df['summarized_text'] = result_s['summarized_text']
         save_df.to_csv(self.config.result_save_path, sep='\t', index=False)
 
-    def predict(self, model_name):
+    def predict_online(self, model_name):
         import common_io
         self.config.tables = "odps://kbalgo_dev/tables/jx_text_sum_predict"
         self.config.outputs = "odps://kbalgo_dev/tables/jx_text_sum_predict_outputs"

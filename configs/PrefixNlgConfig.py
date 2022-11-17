@@ -35,30 +35,25 @@ class PrefixNlgConfig:
         parser.add_argument("-run_mode", type=str, default="train", choices=["train", "predict"])
         parser.add_argument("-learning_rate", type=float, default="1e-5")
         parser.add_argument("-batch_size", type=int, default=4)
-        parser.add_argument("-hidden_size", type=int, default=768)
         parser.add_argument("-encoder", type=str, default="classifier", choices=["classifier"])
-
         parser.add_argument("-max_epoch", default=100, type=int)
         parser.add_argument("-patience", default=100, type=int)
         parser.add_argument("-max_pred_sents", default=2, type=int)
         parser.add_argument("-save_checkpoint_steps", default=1000, type=int)
-        # 最多训练次数
         parser.add_argument("-train_steps", default=40000, type=int)
         parser.add_argument("-train_log_steps", default=10, type=int)
 
+        # 模型结构
+        parser.add_argument("-hidden_size", type=int, default=768)
+
         # 模型超参数配置
-        # processor
-        # 最小句子量，文章不能低于3句话
         parser.add_argument("-min_sents", default=3, type=int)
-        # 最大句子量，文章超过100句话
         parser.add_argument("-max_sents", default=100, type=int)
-        # 句子最短长度
         parser.add_argument("-min_tokens", default=3, type=int)
-        # 句子最大长度
         parser.add_argument("-max_tokens", default=150, type=int)
         parser.add_argument("-max_position_embeddings", default=512, type=int)
         # odps 参数
-        parser.add_argument("--tables", default="", type=str, help="ODPS input table names")
-        parser.add_argument("--outputs", default="", type=str, help="ODPS output table names")
+        parser.add_argument("--tables", type=str, default="odps://kbalgo_dev/tables/jx_text_sum_predict", help="ODPS input table names")
+        parser.add_argument("--outputs", type=str, default="odps://kbalgo_dev/tables/jx_text_sum_predict_outputs", help="ODPS output table names")
         args = parser.parse_args()
         return args
